@@ -29,11 +29,16 @@ CHANNEL_ID_KEY = "telegram_channel_id"
 DISABLE_NIGHT_UPDATES_KEY = "disable_night_updates"
 NIGHT_START_HOUR = 2
 NIGHT_END_HOUR = 8
+BROADCAST_MINUTE = 5
 
 
-def next_top_of_hour(now: datetime | None = None) -> datetime:
+def next_broadcast_time(now: datetime | None = None) -> datetime:
+    """Return the next HH:05 broadcast time in Singapore."""
     current = (now or datetime.now(SGT)).astimezone(SGT)
-    return current.replace(minute=0, second=0, microsecond=0) + timedelta(hours=1)
+    candidate = current.replace(minute=BROADCAST_MINUTE, second=0, microsecond=0)
+    if candidate <= current:
+        candidate += timedelta(hours=1)
+    return candidate
 
 
 def should_suppress_night_update(timestamp: datetime, *, disabled: bool) -> bool:
@@ -117,7 +122,7 @@ def build_application(settings: Settings) -> Application[Any, Any, Any, Any, Any
 
     if application.job_queue is None:
         raise RuntimeError("JobQueue is unavailable; install the project with its dependencies")
-    first_run = next_top_of_hour()
+    first_run = next_broadcast_time()
     application.job_queue.run_repeating(
         scheduled_broadcast,
         interval=timedelta(hours=1),

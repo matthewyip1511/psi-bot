@@ -1,7 +1,7 @@
 # Singapore PSI Telegram Bot
 
 A small Python service that posts Singapore's latest **24-hour PSI** and **1-hour PM2.5**
-readings to a Telegram channel at the top of every hour (Singapore time). It reports all five
+readings to a Telegram channel at five minutes past every hour (Singapore time). It reports all five
 regions, each reading's official NEA band, the national range, and separate source timestamps. An
 optional quiet period can suppress the 2:00 AM through 7:00 AM scheduled updates.
 
@@ -119,13 +119,14 @@ You can also run it as a module:
 python -m psi_bot
 ```
 
-The first scheduled post is at the next top of the hour in Singapore. Set
+The first scheduled post is at the next `HH:05` mark in Singapore. Set
 `SEND_ON_STARTUP=true` while commissioning the bot if you also want an immediate post. Leave it
 `false` in normal operation to avoid an extra post after restarts.
 
-Set `DISABLE_NIGHT_UPDATES=true` to suppress broadcasts scheduled from 2:00 AM through 7:00 AM
-Singapore time. The final overnight post is then at 1:00 AM, and hourly posting resumes at 8:00 AM.
-This quiet period also suppresses `SEND_ON_STARTUP` if the service restarts during those hours.
+Set `DISABLE_NIGHT_UPDATES=true` to suppress broadcasts scheduled from 2:05 AM through 7:05 AM
+Singapore time. The final overnight post is then at 1:05 AM, and hourly posting resumes at 8:05 AM.
+This quiet period also suppresses `SEND_ON_STARTUP` from 2:00–7:59 AM if the service restarts during
+those hours.
 
 ## Configuration
 
