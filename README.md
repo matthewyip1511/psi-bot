@@ -2,7 +2,8 @@
 
 A small Python service that posts Singapore's latest **24-hour PSI** and **1-hour PM2.5**
 readings to a Telegram channel at the top of every hour (Singapore time). It reports all five
-regions, each reading's official NEA band, the national range, and separate source timestamps.
+regions, each reading's official NEA band, the national range, and separate source timestamps. An
+optional quiet period can suppress the 2:00 AM through 7:00 AM scheduled updates.
 
 The bot is intentionally broadcast-only. Telegram does not provide a switch that prevents a user
 from opening a bot DM, so every private message receives only this response:
@@ -122,6 +123,10 @@ The first scheduled post is at the next top of the hour in Singapore. Set
 `SEND_ON_STARTUP=true` while commissioning the bot if you also want an immediate post. Leave it
 `false` in normal operation to avoid an extra post after restarts.
 
+Set `DISABLE_NIGHT_UPDATES=true` to suppress broadcasts scheduled from 2:00 AM through 7:00 AM
+Singapore time. The final overnight post is then at 1:00 AM, and hourly posting resumes at 8:00 AM.
+This quiet period also suppresses `SEND_ON_STARTUP` if the service restarts during those hours.
+
 ## Configuration
 
 | Variable | Required | Meaning |
@@ -130,6 +135,7 @@ The first scheduled post is at the next top of the hour in Singapore. Set
 | `TELEGRAM_CHANNEL_ID` | Yes | `@public_username` or numeric channel ID such as `-100…`. |
 | `DATA_GOV_SG_API_KEY` | No | Adds higher data.gov.sg rate limits; sent in the `x-api-key` header. |
 | `SEND_ON_STARTUP` | No | `true` sends once on startup; default is `false`. |
+| `DISABLE_NIGHT_UPDATES` | No | `true` suppresses updates from 2:00–7:59 AM SGT; default is `false`. |
 | `LOG_LEVEL` | No | Python log level; default is `INFO`. |
 
 Never commit `.env`; it is ignored by Git.

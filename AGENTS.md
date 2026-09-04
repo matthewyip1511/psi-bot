@@ -6,8 +6,9 @@ Guidance for coding agents working in this repository.
 
 This is a single-instance, broadcast-only Telegram bot. At the top of every hour in
 `Asia/Singapore`, it fetches official NEA data through data.gov.sg and posts one channel update.
-It never serves air-quality data in private chats; DMs receive only `PRIVATE_NOTICE`. Group
-messages are ignored.
+When `DISABLE_NIGHT_UPDATES=true`, it suppresses the 02:00–07:59 SGT updates, including startup
+broadcasts. It never serves air-quality data in private chats; DMs receive only `PRIVATE_NOTICE`.
+Group messages are ignored.
 
 ## Structure
 
@@ -28,7 +29,9 @@ messages are ignored.
 5. Never commit `.env`, tokens, API keys, channel IDs belonging to users, or captured private
    messages.
 6. Schedule in `Asia/Singapore`; do not rely on the host machine's timezone.
-7. Keep only one production replica unless distributed locking is added, or broadcasts will
+7. When night updates are disabled, send at 01:00 and resume at 08:00 SGT; do not fetch during the
+   quiet period.
+8. Keep only one production replica unless distributed locking is added, or broadcasts will
    duplicate.
 
 ## Commands

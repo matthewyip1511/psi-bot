@@ -20,6 +20,7 @@ Thank you for improving the Singapore PSI Telegram Bot.
 - Keep network access inside `DataGovSgClient`; use mocked HTTP transports in tests.
 - Keep Telegram presentation logic in `formatting.py` and band rules in `bands.py`.
 - Preserve all five regions and show the PSI and PM2.5 source timestamps separately.
+- Keep the optional night quiet period at 02:00–07:59 in `Asia/Singapore`.
 - Keep the bot broadcast-only. Private messages may receive only the fixed notice, and group
   messages must be ignored.
 - Do not log or commit Telegram tokens or data.gov.sg API keys.

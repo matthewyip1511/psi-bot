@@ -48,6 +48,7 @@ class Settings:
     telegram_channel_id: int | str
     data_gov_sg_api_key: str | None = None
     send_on_startup: bool = False
+    disable_night_updates: bool = False
     log_level: str = "INFO"
 
     @classmethod
@@ -60,6 +61,6 @@ class Settings:
             telegram_channel_id=_parse_channel_id(_required("TELEGRAM_CHANNEL_ID")),
             data_gov_sg_api_key=api_key,
             send_on_startup=_parse_bool("SEND_ON_STARTUP"),
+            disable_night_updates=_parse_bool("DISABLE_NIGHT_UPDATES"),
             log_level=log_level,
         )
-

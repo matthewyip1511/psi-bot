@@ -9,6 +9,7 @@ from telegram.constants import ParseMode
 from psi_bot.bot import (
     CHANNEL_ID_KEY,
     DATA_CLIENT_KEY,
+    DISABLE_NIGHT_UPDATES_KEY,
     PRIVATE_NOTICE,
     broadcast_air_quality,
     private_message_notice,
@@ -51,3 +52,24 @@ async def test_broadcast_sends_message_with_html_formatting() -> None:
     assert call.kwargs["chat_id"] == -1001234567890
     assert call.kwargs["parse_mode"] == ParseMode.HTML
     assert "<b>123</b> — <b>Unhealthy</b>" in call.kwargs["text"]
+
+
+@pytest.mark.asyncio
+async def test_broadcast_is_not_fetched_or_sent_during_disabled_night_hours() -> None:
+    client = SimpleNamespace(fetch_latest=AsyncMock())
+    bot = SimpleNamespace(send_message=AsyncMock())
+    application = SimpleNamespace(
+        bot=bot,
+        bot_data={
+            DATA_CLIENT_KEY: client,
+            CHANNEL_ID_KEY: -1001234567890,
+            DISABLE_NIGHT_UPDATES_KEY: True,
+        },
+    )
+    quiet_time = datetime(2026, 9, 5, 2, 0, tzinfo=ZoneInfo("Asia/Singapore"))
+
+    sent = await broadcast_air_quality(application, now=quiet_time)  # type: ignore[arg-type]
+
+    assert sent is False
+    client.fetch_latest.assert_not_awaited()
+    bot.send_message.assert_not_awaited()

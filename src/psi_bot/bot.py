@@ -26,11 +26,20 @@ LOGGER = logging.getLogger(__name__)
 PRIVATE_NOTICE = "This bot is for blasting messages only."
 DATA_CLIENT_KEY = "data_gov_sg_client"
 CHANNEL_ID_KEY = "telegram_channel_id"
+DISABLE_NIGHT_UPDATES_KEY = "disable_night_updates"
+NIGHT_START_HOUR = 2
+NIGHT_END_HOUR = 8
 
 
 def next_top_of_hour(now: datetime | None = None) -> datetime:
     current = (now or datetime.now(SGT)).astimezone(SGT)
     return current.replace(minute=0, second=0, microsecond=0) + timedelta(hours=1)
+
+
+def should_suppress_night_update(timestamp: datetime, *, disabled: bool) -> bool:
+    """Return whether a broadcast falls within the optional 02:00–07:59 SGT quiet period."""
+    hour = timestamp.astimezone(SGT).hour
+    return disabled and NIGHT_START_HOUR <= hour < NIGHT_END_HOUR
 
 
 async def private_message_notice(
@@ -42,12 +51,24 @@ async def private_message_notice(
         await update.effective_message.reply_text(PRIVATE_NOTICE)
 
 
-async def broadcast_air_quality(application: Application[Any, Any, Any, Any, Any, Any]) -> bool:
+async def broadcast_air_quality(
+    application: Application[Any, Any, Any, Any, Any, Any],
+    *,
+    now: datetime | None = None,
+) -> bool:
+    sent_at = now or datetime.now(SGT)
+    if should_suppress_night_update(
+        sent_at,
+        disabled=application.bot_data.get(DISABLE_NIGHT_UPDATES_KEY, False),
+    ):
+        LOGGER.info("Skipping air-quality update during the 02:00–07:59 SGT quiet period")
+        return False
+
     client: DataGovSgClient = application.bot_data[DATA_CLIENT_KEY]
     channel_id: int | str = application.bot_data[CHANNEL_ID_KEY]
     try:
         snapshot = await client.fetch_latest()
-        message = format_air_quality_message(snapshot)
+        message = format_air_quality_message(snapshot, sent_at=sent_at)
         await application.bot.send_message(
             chat_id=channel_id,
             text=message,
@@ -74,7 +95,7 @@ def build_application(settings: Settings) -> Application[Any, Any, Any, Any, Any
 
     async def on_startup(application: Application[Any, Any, Any, Any, Any, Any]) -> None:
         if settings.send_on_startup:
-            LOGGER.info("SEND_ON_STARTUP is enabled; sending an initial update")
+            LOGGER.info("SEND_ON_STARTUP is enabled; attempting an initial update")
             await broadcast_air_quality(application)
 
     async def on_shutdown(_application: Application[Any, Any, Any, Any, Any, Any]) -> None:
@@ -90,6 +111,7 @@ def build_application(settings: Settings) -> Application[Any, Any, Any, Any, Any
     )
     application.bot_data[DATA_CLIENT_KEY] = client
     application.bot_data[CHANNEL_ID_KEY] = settings.telegram_channel_id
+    application.bot_data[DISABLE_NIGHT_UPDATES_KEY] = settings.disable_night_updates
     application.add_handler(MessageHandler(filters.ChatType.PRIVATE, private_message_notice))
     application.add_error_handler(on_error)
 
