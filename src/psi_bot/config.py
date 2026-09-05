@@ -30,18 +30,6 @@ def _parse_channel_id(value: str) -> int | str:
         ) from exc
 
 
-def _parse_bool(name: str, default: bool = False) -> bool:
-    raw = os.getenv(name)
-    if raw is None:
-        return default
-    normalized = raw.strip().lower()
-    if normalized in {"1", "true", "yes", "on"}:
-        return True
-    if normalized in {"0", "false", "no", "off"}:
-        return False
-    raise ConfigurationError(f"{name} must be true or false")
-
-
 def _positive_int(name: str, default: int) -> int:
     try:
         value = int(os.getenv(name, str(default)))
@@ -57,8 +45,6 @@ class Settings:
     telegram_bot_token: str
     telegram_channel_id: int | str
     data_gov_sg_api_key: str | None = None
-    send_on_startup: bool = False
-    disable_night_updates: bool = False
     log_level: str = "INFO"
     max_reading_age_minutes: int = 120
 
@@ -71,8 +57,6 @@ class Settings:
             telegram_bot_token=_required("TELEGRAM_BOT_TOKEN"),
             telegram_channel_id=_parse_channel_id(_required("TELEGRAM_CHANNEL_ID")),
             data_gov_sg_api_key=api_key,
-            send_on_startup=_parse_bool("SEND_ON_STARTUP"),
-            disable_night_updates=_parse_bool("DISABLE_NIGHT_UPDATES"),
             log_level=log_level,
             max_reading_age_minutes=_positive_int("MAX_READING_AGE_MINUTES", 120),
         )

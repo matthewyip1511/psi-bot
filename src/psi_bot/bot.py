@@ -1,4 +1,4 @@
-"""Telegram application and hourly scheduler."""
+"""Telegram application and three-times-daily scheduler."""
 
 from __future__ import annotations
 
@@ -26,26 +26,7 @@ LOGGER = logging.getLogger(__name__)
 PRIVATE_NOTICE = "This bot is for blasting messages only."
 DATA_CLIENT_KEY = "data_gov_sg_client"
 CHANNEL_ID_KEY = "telegram_channel_id"
-DISABLE_NIGHT_UPDATES_KEY = "disable_night_updates"
 MAX_READING_AGE_KEY = "max_reading_age_minutes"
-NIGHT_START_HOUR = 2
-NIGHT_END_HOUR = 8
-BROADCAST_MINUTE = 5
-
-
-def next_broadcast_time(now: datetime | None = None) -> datetime:
-    """Return the next HH:05 broadcast time in Singapore."""
-    current = (now or datetime.now(SGT)).astimezone(SGT)
-    candidate = current.replace(minute=BROADCAST_MINUTE, second=0, microsecond=0)
-    if candidate <= current:
-        candidate += timedelta(hours=1)
-    return candidate
-
-
-def should_suppress_night_update(timestamp: datetime, *, disabled: bool) -> bool:
-    """Return whether a broadcast falls within the optional 02:00–07:59 SGT quiet period."""
-    hour = timestamp.astimezone(SGT).hour
-    return disabled and NIGHT_START_HOUR <= hour < NIGHT_END_HOUR
 
 
 async def private_message_notice(
@@ -62,14 +43,6 @@ async def broadcast_air_quality(
     *,
     now: datetime | None = None,
 ) -> bool:
-    sent_at = now or datetime.now(SGT)
-    if should_suppress_night_update(
-        sent_at,
-        disabled=application.bot_data.get(DISABLE_NIGHT_UPDATES_KEY, False),
-    ):
-        LOGGER.info("Skipping air-quality update during the 02:00–07:59 SGT quiet period")
-        return False
-
     client: DataGovSgClient = application.bot_data[DATA_CLIENT_KEY]
     channel_id: int | str = application.bot_data[CHANNEL_ID_KEY]
     try:
@@ -108,11 +81,6 @@ async def on_error(_update: object, context: CallbackContext[Any, Any, Any, Any]
 def build_application(settings: Settings) -> Application[Any, Any, Any, Any, Any, Any]:
     client = DataGovSgClient(settings.data_gov_sg_api_key)
 
-    async def on_startup(application: Application[Any, Any, Any, Any, Any, Any]) -> None:
-        if settings.send_on_startup:
-            LOGGER.info("SEND_ON_STARTUP is enabled; attempting an initial update")
-            await broadcast_air_quality(application)
-
     async def on_shutdown(_application: Application[Any, Any, Any, Any, Any, Any]) -> None:
         await client.aclose()
 
@@ -120,28 +88,32 @@ def build_application(settings: Settings) -> Application[Any, Any, Any, Any, Any
         ApplicationBuilder()
         .token(settings.telegram_bot_token)
         .defaults(Defaults(tzinfo=SGT))
-        .post_init(on_startup)
         .post_shutdown(on_shutdown)
         .build()
     )
     application.bot_data[DATA_CLIENT_KEY] = client
     application.bot_data[CHANNEL_ID_KEY] = settings.telegram_channel_id
-    application.bot_data[DISABLE_NIGHT_UPDATES_KEY] = settings.disable_night_updates
     application.bot_data[MAX_READING_AGE_KEY] = settings.max_reading_age_minutes
     application.add_handler(MessageHandler(filters.ChatType.PRIVATE, private_message_notice))
     application.add_error_handler(on_error)
 
     if application.job_queue is None:
         raise RuntimeError("JobQueue is unavailable; install the project with its dependencies")
-    first_run = next_broadcast_time()
-    application.job_queue.run_repeating(
+    application.job_queue.run_custom(
         scheduled_broadcast,
-        interval=timedelta(hours=1),
-        first=first_run,
-        name="hourly-air-quality-broadcast",
-        job_kwargs={"coalesce": True, "max_instances": 1, "misfire_grace_time": 300},
+        name="daily-air-quality-broadcast",
+        job_kwargs={
+            "trigger": "cron",
+            "hour": "9,14,20",
+            "minute": 15,
+            "second": 0,
+            "timezone": SGT,
+            "coalesce": True,
+            "max_instances": 1,
+            "misfire_grace_time": 300,
+        },
     )
-    LOGGER.info("First hourly broadcast scheduled for %s", first_run.isoformat())
+    LOGGER.info("Broadcasts scheduled for 09:15, 14:15, and 20:15 Asia/Singapore")
     return application
 
 

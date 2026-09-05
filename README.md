@@ -1,9 +1,9 @@
 # Singapore PSI Telegram Bot
 
 A small Python service that posts Singapore's latest **24-hour PSI** and **1-hour PM2.5**
-readings to a Telegram channel at five minutes past every hour (Singapore time). It reports all five
-regions, each reading's official NEA band, the national range, and separate source timestamps. An
-optional quiet period can suppress the 2:00 AM through 7:00 AM scheduled updates.
+readings to a Telegram channel at **9:15 AM, 2:15 PM, and 8:15 PM Singapore time** every day.
+It reports all five regions, each reading's official NEA band, the national range, and separate
+source timestamps. Starting or restarting the bot does not send an extra update.
 
 The bot is intentionally broadcast-only. Telegram does not provide a switch that prevents a user
 from opening a bot DM, so every private message receives only this response:
@@ -80,7 +80,7 @@ sh start.sh
 
 `install.sh` will not overwrite an existing `.env`. Run the service under a supervisor such as
 systemd if it needs to stay online continuously; only run one copy, or the channel will receive
-duplicate hourly posts.
+duplicate posts.
 
 ### Manual install (all platforms)
 
@@ -119,14 +119,12 @@ You can also run it as a module:
 python -m psi_bot
 ```
 
-The first scheduled post is at the next `HH:05` mark in Singapore. Set
-`SEND_ON_STARTUP=true` while commissioning the bot if you also want an immediate post. Leave it
-`false` in normal operation to avoid an extra post after restarts.
+The first post is at the next scheduled slot: **09:15, 14:15, or 20:15** in `Asia/Singapore`,
+regardless of the host machine's timezone. After 20:15, the next post is at 09:15 the following day.
+The bot does not catch up on slots missed while it was stopped.
 
-Set `DISABLE_NIGHT_UPDATES=true` to suppress broadcasts scheduled from 2:05 AM through 7:05 AM
-Singapore time. The final overnight post is then at 1:05 AM, and hourly posting resumes at 8:05 AM.
-This quiet period also suppresses `SEND_ON_STARTUP` from 2:00–7:59 AM if the service restarts during
-those hours.
+The old `SEND_ON_STARTUP` and `DISABLE_NIGHT_UPDATES` variables are no longer used. Existing `.env`
+files may keep them, but they have no effect; broadcasts follow only the three daily slots.
 
 ## Configuration
 
@@ -135,8 +133,6 @@ those hours.
 | `TELEGRAM_BOT_TOKEN` | Yes | Token issued by BotFather. |
 | `TELEGRAM_CHANNEL_ID` | Yes | `@public_username` or numeric channel ID such as `-100…`. |
 | `DATA_GOV_SG_API_KEY` | No | Adds higher data.gov.sg rate limits; sent in the `x-api-key` header. |
-| `SEND_ON_STARTUP` | No | `true` sends once on startup; default is `false`. |
-| `DISABLE_NIGHT_UPDATES` | No | `true` suppresses updates from 2:00–7:59 AM SGT; default is `false`. |
 | `LOG_LEVEL` | No | Python log level; default is `INFO`. |
 | `MAX_READING_AGE_MINUTES` | No | Maximum age of each feed's timestamp, in positive whole minutes; default is `120`. |
 
@@ -153,16 +149,16 @@ message is otherwise kept simple and readable:
 
 ```text
 🇸🇬 Singapore Air Quality Update
-Sent: Friday, 4 September 2026 at 11:05 PM SGT
+Sent: Friday, 4 September 2026 at 8:15 PM SGT
 
 24-hour PSI
-Data time: Friday, 4 September 2026 at 11:00 PM SGT
+Data time: Friday, 4 September 2026 at 8:00 PM SGT
 Singapore range: 87–123 (Moderate to Unhealthy)
 • North: 88 — Moderate
 ...
 
 1-hour PM2.5
-Data time: Friday, 4 September 2026 at 10:00 PM SGT
+Data time: Friday, 4 September 2026 at 7:00 PM SGT
 Singapore range: 54–83 µg/m³ (Normal to Elevated)
 • North: 56 µg/m³ — Band 2 — Elevated
 ...
@@ -171,7 +167,7 @@ Source: NEA via data.gov.sg
 ```
 
 The API is retried up to three times for transient failures. If data.gov.sg or Telegram remains
-unavailable, that hour is logged and skipped instead of publishing stale or misleading data.
+unavailable, that scheduled update is logged and skipped instead of publishing stale or misleading data.
 
 Before sending, the bot checks each feed's timestamp independently. It skips the entire update
 if either reading is older than `MAX_READING_AGE_MINUTES` or more than five minutes in the future.
@@ -192,5 +188,16 @@ ruff check .
 ```
 
 See [CONTRIBUTING.md](CONTRIBUTING.md) for contribution guidance.
+
+## Continuous integration
+
+[The GitHub Actions workflow](.github/workflows/ci.yml) runs Ruff static analysis and the full
+pytest suite on pushes to `main` and pull requests targeting `main`. It can also be run manually
+from the Actions tab. Checks run on Python 3.11 and 3.14 with mocked external services, so no
+Telegram credentials or API keys are required.
+
+Deployment remains manual; no production host or deployment credentials are configured in this
+repository. After updating the deployed checkout and dependencies, restart the existing bot
+service to apply the schedule, keeping only one instance running.
 
 [psi-dataset]: https://data.gov.sg/datasets/d_fe37906a0182569d891506e815e819b7/view
