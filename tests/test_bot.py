@@ -44,7 +44,9 @@ async def test_broadcast_sends_message_with_html_formatting() -> None:
         bot_data={DATA_CLIENT_KEY: client, CHANNEL_ID_KEY: -1001234567890},
     )
 
-    sent = await broadcast_air_quality(application)  # type: ignore[arg-type]
+    sent = await broadcast_air_quality(
+        application, now=datetime(2026, 9, 4, 23, 5, tzinfo=sgt)
+    )  # type: ignore[arg-type]
 
     assert sent is True
     bot.send_message.assert_awaited_once()
