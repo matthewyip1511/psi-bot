@@ -10,7 +10,7 @@ from typing import Any
 
 import httpx
 
-from psi_bot.models import AirQualitySnapshot
+from psi_bot.models import REGION_ORDER, AirQualitySnapshot
 
 LOGGER = logging.getLogger(__name__)
 
@@ -119,6 +119,12 @@ def _reading_map(item: Mapping[str, Any], key: str, label: str) -> dict[str, int
         readings = item["readings"][key]
         if not isinstance(readings, dict):
             raise TypeError(f"{key} is not an object")
-        return {str(region): int(value) for region, value in readings.items()}
+        result = {}
+        for region in REGION_ORDER:
+            value = readings[region]
+            if type(value) is not int or value < 0:
+                raise ValueError(f"{region} must have a non-negative integer reading")
+            result[region] = value
+        return result
     except (KeyError, TypeError, ValueError) as exc:
         raise DataGovSgError(f"Invalid {label} readings: {exc}") from exc

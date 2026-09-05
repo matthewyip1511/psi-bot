@@ -42,6 +42,16 @@ def _parse_bool(name: str, default: bool = False) -> bool:
     raise ConfigurationError(f"{name} must be true or false")
 
 
+def _positive_int(name: str, default: int) -> int:
+    try:
+        value = int(os.getenv(name, str(default)))
+        if value > 0:
+            return value
+    except ValueError:
+        pass
+    raise ConfigurationError(f"{name} must be a positive integer")
+
+
 @dataclass(frozen=True, slots=True)
 class Settings:
     telegram_bot_token: str
@@ -50,6 +60,7 @@ class Settings:
     send_on_startup: bool = False
     disable_night_updates: bool = False
     log_level: str = "INFO"
+    max_reading_age_minutes: int = 120
 
     @classmethod
     def from_env(cls) -> Settings:
@@ -63,4 +74,5 @@ class Settings:
             send_on_startup=_parse_bool("SEND_ON_STARTUP"),
             disable_night_updates=_parse_bool("DISABLE_NIGHT_UPDATES"),
             log_level=log_level,
+            max_reading_age_minutes=_positive_int("MAX_READING_AGE_MINUTES", 120),
         )

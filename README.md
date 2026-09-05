@@ -138,6 +138,7 @@ those hours.
 | `SEND_ON_STARTUP` | No | `true` sends once on startup; default is `false`. |
 | `DISABLE_NIGHT_UPDATES` | No | `true` suppresses updates from 2:00–7:59 AM SGT; default is `false`. |
 | `LOG_LEVEL` | No | Python log level; default is `INFO`. |
+| `MAX_READING_AGE_MINUTES` | No | Maximum age of each feed's timestamp, in positive whole minutes; default is `120`. |
 
 Never commit `.env`; it is ignored by Git.
 
@@ -171,6 +172,16 @@ Source: NEA via data.gov.sg
 
 The API is retried up to three times for transient failures. If data.gov.sg or Telegram remains
 unavailable, that hour is logged and skipped instead of publishing stale or misleading data.
+
+Before sending, the bot checks each feed's timestamp independently. It skips the entire update
+if either reading is older than `MAX_READING_AGE_MINUTES` or more than five minutes in the future.
+The two-hour default is an operational freshness limit, not an NEA standard; adjust it to your
+deployment's needs. Exactly-at-limit timestamps are accepted. The host clock must be accurate.
+PSI and PM2.5 may have different timestamps within these limits, and both remain visible.
+
+All five regional readings must be non-negative JSON integers. Booleans, strings, fractions,
+and missing values are rejected rather than coerced or rounded. Additional upstream region keys
+are ignored; the displayed Singapore range uses only the five listed regions.
 
 ## Development
 

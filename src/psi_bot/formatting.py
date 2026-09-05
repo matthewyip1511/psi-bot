@@ -33,8 +33,8 @@ def format_air_quality_message(
     sent_at: datetime | None = None,
 ) -> str:
     sent_at = sent_at or datetime.now(SGT)
-    psi_values = list(snapshot.psi_by_region.values())
-    pm25_values = list(snapshot.pm25_by_region.values())
+    psi_values = [snapshot.psi_by_region[region] for region in REGION_ORDER]
+    pm25_values = [snapshot.pm25_by_region[region] for region in REGION_ORDER]
 
     lines = [
         "🇸🇬 Singapore Air Quality Update",
