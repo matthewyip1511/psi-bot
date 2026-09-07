@@ -1,7 +1,7 @@
 # Singapore PSI Telegram Bot
 
 A small Python service that posts Singapore's latest **24-hour PSI** and **1-hour PM2.5**
-readings to a Telegram channel at **9:15 AM, 2:15 PM, and 8:15 PM Singapore time** every day.
+readings to a Telegram channel at **8:15 AM, 12:15 PM, 4:15 PM, and 8:15 PM Singapore time** every day.
 It reports all five regions, each reading's official NEA band, the national range, and separate
 source timestamps. Starting or restarting the bot does not send an extra update.
 
@@ -119,12 +119,57 @@ You can also run it as a module:
 python -m psi_bot
 ```
 
-The first post is at the next scheduled slot: **09:15, 14:15, or 20:15** in `Asia/Singapore`,
-regardless of the host machine's timezone. After 20:15, the next post is at 09:15 the following day.
+The first post is at the next scheduled slot: **08:15, 12:15, 16:15, or 20:15** in `Asia/Singapore`,
+regardless of the host machine's timezone. After 20:15, the next post is at 08:15 the following day.
 The bot does not catch up on slots missed while it was stopped.
 
 The old `SEND_ON_STARTUP` and `DISABLE_NIGHT_UPDATES` variables are no longer used. Existing `.env`
-files may keep them, but they have no effect; broadcasts follow only the three daily slots.
+files may keep them, but they have no effect; broadcasts follow only the four daily slots.
+
+### Update an existing Raspberry Pi deployment
+
+`install.sh` installs a copy of the Python package into `.venv`. A `git pull` alone does not
+update that installed copy, and a running process keeps its existing schedule until restarted.
+After the changes are available in your Git remote, run these commands from the bot's checkout
+on the Pi:
+
+```bash
+git pull --ff-only
+.venv/bin/python -m pip install .
+```
+
+Then restart the existing bot process. For a terminal, `screen`, or `tmux` deployment, return
+to the session running the bot, stop it with Ctrl+C, then run `sh start.sh` from the checkout.
+You can also use `sh install.sh` for the reinstall step; it keeps your existing `.env`.
+Running `start.sh` alone does not reinstall the package or stop an older process.
+
+If you use systemd and your service is named `psi-bot.service`, run:
+
+```bash
+sudo systemctl restart psi-bot.service
+sudo journalctl -u psi-bot.service --since "5 minutes ago" --no-pager | grep 'Broadcasts scheduled'
+```
+
+Use your actual service name if different. With the default `INFO` log level, the new startup
+log should contain:
+
+```text
+Broadcasts scheduled for 08:15, 12:15, 16:15, and 20:15 Asia/Singapore
+```
+
+If posts still arrive hourly, check which checkout and Python environment the service actually
+uses:
+
+```bash
+sudo systemctl show psi-bot.service -p WorkingDirectory -p ExecStart -p MainPID
+.venv/bin/python -c "import psi_bot.bot; print(psi_bot.bot.__file__)"
+```
+
+The Python command shows the installed module for this checkout's environment; ensure the
+service uses that same environment. Check for an older copy still running in another service,
+Docker container, terminal, `screen`, or `tmux`, and for old cron jobs or systemd timers that
+launch the bot. Keep only one production instance. The current scheduler has no hourly job
+and sends no extra post on startup; hourly posts suggest an older deployment or another sender.
 
 ## Configuration
 

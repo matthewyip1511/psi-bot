@@ -4,7 +4,7 @@ Guidance for coding agents working in this repository.
 
 ## Project intent
 
-This is a single-instance, broadcast-only Telegram bot. At 09:15, 14:15, and 20:15 every day in
+This is a single-instance, broadcast-only Telegram bot. At 08:15, 12:15, 16:15, and 20:15 every day in
 `Asia/Singapore`, it fetches official NEA data through data.gov.sg and posts one channel update.
 It does not broadcast on startup or restart. It never serves air-quality data in private chats;
 DMs receive only `PRIVATE_NOTICE`.
@@ -28,7 +28,7 @@ Group messages are ignored.
    requirement.
 5. Never commit `.env`, tokens, API keys, channel IDs belonging to users, or captured private
    messages.
-6. Schedule only at 09:15, 14:15, and 20:15 in `Asia/Singapore`; do not rely on the host timezone.
+6. Schedule only at 08:15, 12:15, 16:15, and 20:15 in `Asia/Singapore`; do not rely on the host timezone.
 7. Do not fetch or broadcast on startup or restart; wait for the next scheduled slot.
 8. Keep only one production replica unless distributed locking is added, or broadcasts will
    duplicate.

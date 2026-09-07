@@ -1,4 +1,4 @@
-"""Telegram application and three-times-daily scheduler."""
+"""Telegram application and four-times-daily scheduler."""
 
 from __future__ import annotations
 
@@ -104,7 +104,7 @@ def build_application(settings: Settings) -> Application[Any, Any, Any, Any, Any
         name="daily-air-quality-broadcast",
         job_kwargs={
             "trigger": "cron",
-            "hour": "9,14,20",
+            "hour": "8,12,16,20",
             "minute": 15,
             "second": 0,
             "timezone": SGT,
@@ -113,7 +113,7 @@ def build_application(settings: Settings) -> Application[Any, Any, Any, Any, Any
             "misfire_grace_time": 300,
         },
     )
-    LOGGER.info("Broadcasts scheduled for 09:15, 14:15, and 20:15 Asia/Singapore")
+    LOGGER.info("Broadcasts scheduled for 08:15, 12:15, 16:15, and 20:15 Asia/Singapore")
     return application
 
 

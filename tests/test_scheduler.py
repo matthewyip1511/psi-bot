@@ -16,7 +16,7 @@ def application():
         client.return_value.fetch_latest.assert_not_awaited()
 
 
-def test_schedule_has_only_three_daily_slots(application) -> None:
+def test_schedule_has_only_four_daily_slots(application) -> None:
     jobs = application.job_queue.jobs()
     assert len(jobs) == 1
     job = jobs[0]
@@ -28,7 +28,7 @@ def test_schedule_has_only_three_daily_slots(application) -> None:
     previous = None
     # Cross midnight and the year boundary, including all overnight hours.
     for day in (current, current + timedelta(days=1)):
-        for hour in (9, 14, 20):
+        for hour in (8, 12, 16, 20):
             upcoming = trigger.get_next_fire_time(previous, current)
             assert upcoming == day.replace(hour=hour, minute=15)
             previous = upcoming
@@ -38,12 +38,15 @@ def test_schedule_has_only_three_daily_slots(application) -> None:
 @pytest.mark.parametrize(
     ("now", "expected"),
     [
-        (datetime(2026, 9, 6, 9, 14, 59, tzinfo=SGT), datetime(2026, 9, 6, 9, 15, tzinfo=SGT)),
-        (datetime(2026, 9, 6, 9, 15, tzinfo=SGT), datetime(2026, 9, 6, 9, 15, tzinfo=SGT)),
-        (datetime(2026, 9, 6, 9, 15, 1, tzinfo=SGT), datetime(2026, 9, 6, 14, 15, tzinfo=SGT)),
-        (datetime(2026, 9, 6, 14, 15, 1, tzinfo=SGT), datetime(2026, 9, 6, 20, 15, tzinfo=SGT)),
-        (datetime(2026, 9, 6, 20, 15, 1, tzinfo=SGT), datetime(2026, 9, 7, 9, 15, tzinfo=SGT)),
-        (datetime(2026, 9, 6, 1, 0, tzinfo=UTC), datetime(2026, 9, 6, 9, 15, tzinfo=SGT)),
+        (datetime(2026, 9, 6, 8, 14, 59, tzinfo=SGT), datetime(2026, 9, 6, 8, 15, tzinfo=SGT)),
+        (datetime(2026, 9, 6, 8, 15, tzinfo=SGT), datetime(2026, 9, 6, 8, 15, tzinfo=SGT)),
+        (datetime(2026, 9, 6, 8, 15, 1, tzinfo=SGT), datetime(2026, 9, 6, 12, 15, tzinfo=SGT)),
+        (datetime(2026, 9, 6, 9, 15, tzinfo=SGT), datetime(2026, 9, 6, 12, 15, tzinfo=SGT)),
+        (datetime(2026, 9, 6, 12, 15, 1, tzinfo=SGT), datetime(2026, 9, 6, 16, 15, tzinfo=SGT)),
+        (datetime(2026, 9, 6, 14, 15, tzinfo=SGT), datetime(2026, 9, 6, 16, 15, tzinfo=SGT)),
+        (datetime(2026, 9, 6, 16, 15, 1, tzinfo=SGT), datetime(2026, 9, 6, 20, 15, tzinfo=SGT)),
+        (datetime(2026, 9, 6, 20, 15, 1, tzinfo=SGT), datetime(2026, 9, 7, 8, 15, tzinfo=SGT)),
+        (datetime(2026, 9, 6, 0, 0, tzinfo=UTC), datetime(2026, 9, 6, 8, 15, tzinfo=SGT)),
     ],
 )
 def test_starting_bot_waits_for_next_slot(application, now, expected) -> None:
