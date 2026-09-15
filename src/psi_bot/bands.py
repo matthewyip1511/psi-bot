@@ -1,4 +1,4 @@
-"""NEA air-quality band classifications."""
+"""Air-quality band classifications."""
 
 from __future__ import annotations
 
@@ -43,3 +43,19 @@ def pm25_band(value: int | float) -> Band:
         return Band(3, "High")
     return Band(4, "Very High")
 
+
+def european_aqi_band(value: int | float) -> Band:
+    """Return the European AQI descriptor used by Open-Meteo and the EEA."""
+    if value < 0:
+        raise ValueError("European AQI cannot be negative")
+    if value <= 20:
+        return Band(None, "Good")
+    if value <= 40:
+        return Band(None, "Fair")
+    if value <= 60:
+        return Band(None, "Moderate")
+    if value <= 80:
+        return Band(None, "Poor")
+    if value <= 100:
+        return Band(None, "Very poor")
+    return Band(None, "Extremely poor")

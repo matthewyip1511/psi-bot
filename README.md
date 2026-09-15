@@ -1,9 +1,10 @@
-# Singapore PSI Telegram Bot
+# Singapore PSI and London Weather Telegram Bot
 
 A small Python service that posts Singapore's latest **24-hour PSI** and **1-hour PM2.5**
 readings to a Telegram channel at **8:15 AM, 12:15 PM, 4:15 PM, and 8:15 PM Singapore time** every day.
 It reports all five regions, each reading's official NEA band, the national range, and separate
-source timestamps. Starting or restarting the bot does not send an extra update.
+source timestamps. It also posts a London forecast at **8:00 AM London time** each day, automatically
+following GMT/BST. Starting or restarting the bot does not send an extra update.
 
 The bot is intentionally broadcast-only. Telegram does not provide a switch that prevents a user
 from opening a bot DM, so every private message receives only this response:
@@ -29,6 +30,16 @@ Bands follow [NEA's published air-quality table](https://www.haze.gov.sg/):
 | 101–200 | Unhealthy | 151–250 | 3 — High |
 | 201–300 | Very Unhealthy | ≥251 | 4 — Very High |
 | >300 | Hazardous | — | — |
+
+### London forecast source
+
+The London post uses the keyless [Open-Meteo Weather Forecast API](https://open-meteo.com/en/docs)
+for the day's minimum and maximum temperature and maximum precipitation probability. Its
+[Air Quality API](https://open-meteo.com/en/docs/air-quality-api) supplies hourly European AQI
+forecasts from CAMS ENSEMBLE; the post reports the day's maximum value and its EEA descriptor.
+Open-Meteo and CAMS ENSEMBLE are attributed in every post. The free Open-Meteo endpoint is intended
+for non-commercial use and requires no new environment variable; commercial deployments should
+review Open-Meteo's current API terms and plans.
 
 ## Telegram setup
 
@@ -119,12 +130,13 @@ You can also run it as a module:
 python -m psi_bot
 ```
 
-The first post is at the next scheduled slot: **08:15, 12:15, 16:15, or 20:15** in `Asia/Singapore`,
-regardless of the host machine's timezone. After 20:15, the next post is at 08:15 the following day.
-The bot does not catch up on slots missed while it was stopped.
+The first post is at the next scheduled slot. Singapore air-quality posts run at **08:15, 12:15,
+16:15, or 20:15** in `Asia/Singapore`; the London forecast runs at **08:00** in `Europe/London`.
+These named timezones are independent of the host timezone, and the London schedule automatically
+tracks daylight-saving changes. The bot does not catch up on slots missed while it was stopped.
 
 The old `SEND_ON_STARTUP` and `DISABLE_NIGHT_UPDATES` variables are no longer used. Existing `.env`
-files may keep them, but they have no effect; broadcasts follow only the four daily slots.
+files may keep them, but they have no effect.
 
 ### Update an existing Raspberry Pi deployment
 
@@ -213,6 +225,10 @@ Source: NEA via data.gov.sg
 
 The API is retried up to three times for transient failures. If data.gov.sg or Telegram remains
 unavailable, that scheduled update is logged and skipped instead of publishing stale or misleading data.
+
+The London weather and air-quality calls are also retried up to three times. The forecast is sent
+only when both responses contain complete usable data for London's current local date; otherwise
+the whole London update is logged and skipped.
 
 Before sending, the bot checks each feed's timestamp independently. It skips the entire update
 if either reading is older than `MAX_READING_AGE_MINUTES` or more than five minutes in the future.

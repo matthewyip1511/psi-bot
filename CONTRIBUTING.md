@@ -21,6 +21,7 @@ Thank you for improving the Singapore PSI Telegram Bot.
 - Keep Telegram presentation logic in `formatting.py` and band rules in `bands.py`.
 - Preserve all five regions and show the PSI and PM2.5 source timestamps separately.
 - Keep scheduled broadcasts at 08:15, 12:15, 16:15, and 20:15 in `Asia/Singapore`.
+- Keep the London forecast at 08:00 in `Europe/London` so GMT/BST changes are automatic.
 - Do not send extra broadcasts on startup or restart.
 - Keep the bot broadcast-only. Private messages may receive only the fixed notice, and group
   messages must be ignored.

@@ -1,10 +1,11 @@
-"""Air-quality data models."""
+"""Forecast and air-quality data models."""
 
 from __future__ import annotations
 
 from collections.abc import Mapping
 from dataclasses import dataclass
-from datetime import datetime, timedelta
+from datetime import date, datetime, timedelta
+from math import isfinite
 from types import MappingProxyType
 
 REGION_ORDER = ("north", "south", "east", "west", "central")
@@ -49,3 +50,33 @@ class AirQualitySnapshot:
                 raise ValueError(f"{label} reading is stale: {timestamp.isoformat()}")
             if age < -timedelta(minutes=5):
                 raise ValueError(f"{label} reading is in the future: {timestamp.isoformat()}")
+
+
+@dataclass(frozen=True, slots=True)
+class LondonForecast:
+    date: date
+    temperature_min_c: float
+    temperature_max_c: float
+    precipitation_probability_max: int
+    european_aqi_max: float
+
+    def __post_init__(self) -> None:
+        numeric_values = (
+            self.temperature_min_c,
+            self.temperature_max_c,
+            self.european_aqi_max,
+        )
+        if any(
+            isinstance(value, bool) or not isinstance(value, (int, float))
+            for value in numeric_values
+        ):
+            raise ValueError("Forecast measurements must be numeric")
+        if any(not isfinite(value) for value in numeric_values):
+            raise ValueError("Forecast measurements must be finite")
+        if self.temperature_min_c > self.temperature_max_c:
+            raise ValueError("Minimum temperature cannot exceed maximum temperature")
+        probability = self.precipitation_probability_max
+        if type(probability) is not int or not 0 <= probability <= 100:
+            raise ValueError("Precipitation probability must be an integer from 0 to 100")
+        if self.european_aqi_max < 0:
+            raise ValueError("European AQI cannot be negative")

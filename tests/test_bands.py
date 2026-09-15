@@ -1,6 +1,6 @@
 import pytest
 
-from psi_bot.bands import pm25_band, psi_band
+from psi_bot.bands import european_aqi_band, pm25_band, psi_band
 
 
 @pytest.mark.parametrize(
@@ -39,8 +39,27 @@ def test_pm25_band_boundaries(value: int, number: int, descriptor: str) -> None:
     assert band.descriptor == descriptor
 
 
-@pytest.mark.parametrize("classifier", [psi_band, pm25_band])
+@pytest.mark.parametrize(
+    ("value", "descriptor"),
+    [
+        (0, "Good"),
+        (20, "Good"),
+        (20.1, "Fair"),
+        (40, "Fair"),
+        (40.1, "Moderate"),
+        (60, "Moderate"),
+        (60.1, "Poor"),
+        (80, "Poor"),
+        (80.1, "Very poor"),
+        (100, "Very poor"),
+        (100.1, "Extremely poor"),
+    ],
+)
+def test_european_aqi_band_boundaries(value: float, descriptor: str) -> None:
+    assert european_aqi_band(value).descriptor == descriptor
+
+
+@pytest.mark.parametrize("classifier", [psi_band, pm25_band, european_aqi_band])
 def test_negative_readings_are_rejected(classifier: object) -> None:
     with pytest.raises(ValueError):
         classifier(-1)  # type: ignore[operator]
-

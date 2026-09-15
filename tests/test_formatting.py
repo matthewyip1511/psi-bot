@@ -1,8 +1,8 @@
-from datetime import UTC, datetime
+from datetime import UTC, date, datetime
 from zoneinfo import ZoneInfo
 
-from psi_bot.formatting import format_air_quality_message, format_sgt
-from psi_bot.models import AirQualitySnapshot
+from psi_bot.formatting import format_air_quality_message, format_london_forecast, format_sgt
+from psi_bot.models import AirQualitySnapshot, LondonForecast
 
 SGT = ZoneInfo("Asia/Singapore")
 
@@ -34,3 +34,21 @@ def test_message_contains_timestamps_values_and_bands() -> None:
     assert "Data time: Friday, 4 September 2026 at 10:00 PM SGT" in message
     assert "Singapore range: <b>54–83</b> µg/m³ (<b>Normal to Elevated</b>)" in message
     assert "• North: <b>56</b> µg/m³ — <b>Band 2 — Elevated</b>" in message
+
+
+def test_london_forecast_contains_requested_values_and_attribution() -> None:
+    message = format_london_forecast(
+        LondonForecast(
+            date=date(2026, 9, 15),
+            temperature_min_c=11.0,
+            temperature_max_c=18.4,
+            precipitation_probability_max=65,
+            european_aqi_max=42.5,
+        )
+    )
+
+    assert "Forecast for: Tuesday, 15 September 2026" in message
+    assert "Temperature: <b>11–18.4°C</b>" in message
+    assert "Chance of rain: <b>65%</b>" in message
+    assert "Air quality: <b>42.5 — Moderate</b>" in message
+    assert "CAMS ENSEMBLE via Open-Meteo" in message

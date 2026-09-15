@@ -1,4 +1,4 @@
-"""Telegram application and four-times-daily scheduler."""
+"""Telegram application and scheduled Singapore and London broadcasts."""
 
 from __future__ import annotations
 
@@ -20,13 +20,15 @@ from telegram.ext import (
 
 from psi_bot.config import ConfigurationError, Settings
 from psi_bot.data_gov import DataGovSgClient, DataGovSgError
-from psi_bot.formatting import SGT, format_air_quality_message
+from psi_bot.formatting import SGT, format_air_quality_message, format_london_forecast
+from psi_bot.open_meteo import LONDON, OpenMeteoClient, OpenMeteoError
 
 LOGGER = logging.getLogger(__name__)
 PRIVATE_NOTICE = "This bot is for blasting messages only."
 DATA_CLIENT_KEY = "data_gov_sg_client"
 CHANNEL_ID_KEY = "telegram_channel_id"
 MAX_READING_AGE_KEY = "max_reading_age_minutes"
+OPEN_METEO_CLIENT_KEY = "open_meteo_client"
 
 
 async def private_message_notice(
@@ -74,15 +76,44 @@ async def scheduled_broadcast(context: CallbackContext[Any, Any, Any, Any]) -> N
     await broadcast_air_quality(context.application)
 
 
+async def broadcast_london_forecast(
+    application: Application[Any, Any, Any, Any, Any, Any],
+    *,
+    now: datetime | None = None,
+) -> bool:
+    client: OpenMeteoClient = application.bot_data[OPEN_METEO_CLIENT_KEY]
+    channel_id: int | str = application.bot_data[CHANNEL_ID_KEY]
+    london_now = (now or datetime.now(LONDON)).astimezone(LONDON)
+    try:
+        forecast = await client.fetch_london_forecast(for_date=london_now.date())
+        await application.bot.send_message(
+            chat_id=channel_id,
+            text=format_london_forecast(forecast),
+            parse_mode=ParseMode.HTML,
+        )
+    except (OpenMeteoError, TelegramError) as exc:
+        LOGGER.exception("Could not send the scheduled London forecast: %s", exc)
+        return False
+
+    LOGGER.info("Sent London forecast to %s", channel_id)
+    return True
+
+
+async def scheduled_london_forecast(context: CallbackContext[Any, Any, Any, Any]) -> None:
+    await broadcast_london_forecast(context.application)
+
+
 async def on_error(_update: object, context: CallbackContext[Any, Any, Any, Any]) -> None:
     LOGGER.error("Unhandled Telegram update error", exc_info=context.error)
 
 
 def build_application(settings: Settings) -> Application[Any, Any, Any, Any, Any, Any]:
     client = DataGovSgClient(settings.data_gov_sg_api_key)
+    open_meteo_client = OpenMeteoClient()
 
     async def on_shutdown(_application: Application[Any, Any, Any, Any, Any, Any]) -> None:
         await client.aclose()
+        await open_meteo_client.aclose()
 
     application = (
         ApplicationBuilder()
@@ -92,6 +123,7 @@ def build_application(settings: Settings) -> Application[Any, Any, Any, Any, Any
         .build()
     )
     application.bot_data[DATA_CLIENT_KEY] = client
+    application.bot_data[OPEN_METEO_CLIENT_KEY] = open_meteo_client
     application.bot_data[CHANNEL_ID_KEY] = settings.telegram_channel_id
     application.bot_data[MAX_READING_AGE_KEY] = settings.max_reading_age_minutes
     application.add_handler(MessageHandler(filters.ChatType.PRIVATE, private_message_notice))
@@ -113,7 +145,22 @@ def build_application(settings: Settings) -> Application[Any, Any, Any, Any, Any
             "misfire_grace_time": 300,
         },
     )
+    application.job_queue.run_custom(
+        scheduled_london_forecast,
+        name="daily-london-forecast",
+        job_kwargs={
+            "trigger": "cron",
+            "hour": 8,
+            "minute": 0,
+            "second": 0,
+            "timezone": LONDON,
+            "coalesce": True,
+            "max_instances": 1,
+            "misfire_grace_time": 300,
+        },
+    )
     LOGGER.info("Broadcasts scheduled for 08:15, 12:15, 16:15, and 20:15 Asia/Singapore")
+    LOGGER.info("London forecast scheduled for 08:00 Europe/London")
     return application
 
 
