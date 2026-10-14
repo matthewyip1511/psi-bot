@@ -1,15 +1,21 @@
 # Singapore PSI and London Weather Telegram Bot
 
 A small Python service that posts Singapore's latest **24-hour PSI** and **1-hour PM2.5**
-readings to a Telegram channel at **8:15 AM, 12:15 PM, 4:15 PM, and 8:15 PM Singapore time** every day.
+readings to a Telegram channel at **8:05 AM, 12:05 PM, 4:05 PM, and 8:05 PM Singapore time** every day.
+It also checks readings **hourly at :05 from 8:05 AM through 11:05 PM Singapore time** and posts
+an extra update whenever **any region's PSI is above 200 or PM2.5 is above 150 µg/m³**.
+The four regular posts are sent regardless of those thresholds, with only one post per slot.
 It reports all five regions, each reading's official NEA band, the national range, and separate
 source timestamps. It also posts a London forecast at **8:00 AM London time** each day, automatically
 following GMT/BST. Starting or restarting the bot does not send an extra update.
 
-The bot is intentionally broadcast-only. Telegram does not provide a switch that prevents a user
-from opening a bot DM, so every private message receives only this response:
-
-> This bot is for blasting messages only.
+**DM the bot any message (including `/start`) to get the latest Singapore air-quality update
+on demand**, at any time of day. Each request fetches the latest official 24-hour PSI and
+1-hour PM2.5 readings and replies privately using the same format and freshness checks as
+channel posts. DM replies do not depend on the alert thresholds and do not send a channel post.
+The displayed source timestamps show when the feeds were last updated; the readings are not
+instantaneous measurements taken when you send a DM. If either feed is unavailable or unusable,
+the bot replies: "Current air-quality readings are unavailable. Please try again later."
 
 Messages in groups and channel posts are ignored.
 
@@ -130,8 +136,11 @@ You can also run it as a module:
 python -m psi_bot
 ```
 
-The first post is at the next scheduled slot. Singapore air-quality posts run at **08:15, 12:15,
-16:15, or 20:15** in `Asia/Singapore`; the London forecast runs at **08:00** in `Europe/London`.
+The first scheduled air-quality check is at the next hourly :05 slot between **08:05 and 23:05** in
+`Asia/Singapore`. Regular posts run at **08:05, 12:05, 16:05, and 20:05**; other hourly slots
+post only when any region has **PSI > 200 or PM2.5 > 150 µg/m³**. Readings exactly at 200 PSI
+or 150 PM2.5 do not trigger extra posts. Elevated readings trigger a post each hour while they
+persist; the regular slots still send only once. The London forecast runs at **08:00** in `Europe/London`.
 These named timezones are independent of the host timezone, and the London schedule automatically
 tracks daylight-saving changes. The bot does not catch up on slots missed while it was stopped.
 
@@ -166,10 +175,11 @@ Use your actual service name if different. With the default `INFO` log level, th
 log should contain:
 
 ```text
-Broadcasts scheduled for 08:15, 12:15, 16:15, and 20:15 Asia/Singapore
+Broadcasts scheduled for 08:05, 12:05, 16:05, and 20:05 Asia/Singapore
 ```
 
-If posts still arrive hourly, check which checkout and Python environment the service actually
+If posts arrive hourly even when all regional readings are at or below the thresholds, check
+which checkout and Python environment the service actually
 uses:
 
 ```bash
@@ -180,8 +190,8 @@ sudo systemctl show psi-bot.service -p WorkingDirectory -p ExecStart -p MainPID
 The Python command shows the installed module for this checkout's environment; ensure the
 service uses that same environment. Check for an older copy still running in another service,
 Docker container, terminal, `screen`, or `tmux`, and for old cron jobs or systemd timers that
-launch the bot. Keep only one production instance. The current scheduler has no hourly job
-and sends no extra post on startup; hourly posts suggest an older deployment or another sender.
+launch the bot. Keep only one production instance. The current scheduler sends hourly extra
+posts only when any region has PSI > 200 or PM2.5 > 150, and sends no extra post on startup.
 
 ## Configuration
 
@@ -206,7 +216,7 @@ message is otherwise kept simple and readable:
 
 ```text
 🇸🇬 Singapore Air Quality Update
-Sent: Friday, 4 September 2026 at 8:15 PM SGT
+Sent: Friday, 4 September 2026 at 8:05 PM SGT
 
 24-hour PSI
 Data time: Friday, 4 September 2026 at 8:00 PM SGT

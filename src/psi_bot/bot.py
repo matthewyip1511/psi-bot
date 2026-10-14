@@ -21,43 +21,71 @@ from telegram.ext import (
 from psi_bot.config import ConfigurationError, Settings
 from psi_bot.data_gov import DataGovSgClient, DataGovSgError
 from psi_bot.formatting import SGT, format_air_quality_message, format_london_forecast
+from psi_bot.models import REGION_ORDER, AirQualitySnapshot
 from psi_bot.open_meteo import LONDON, OpenMeteoClient, OpenMeteoError
 
 LOGGER = logging.getLogger(__name__)
-PRIVATE_NOTICE = "This bot is for blasting messages only."
+AIR_QUALITY_UNAVAILABLE = "Current air-quality readings are unavailable. Please try again later."
 DATA_CLIENT_KEY = "data_gov_sg_client"
 CHANNEL_ID_KEY = "telegram_channel_id"
 MAX_READING_AGE_KEY = "max_reading_age_minutes"
 OPEN_METEO_CLIENT_KEY = "open_meteo_client"
 
 
-async def private_message_notice(
+async def _fetch_fresh_air_quality(
+    application: Application[Any, Any, Any, Any, Any, Any],
+    *,
+    now: datetime | None = None,
+) -> tuple[AirQualitySnapshot, datetime]:
+    client: DataGovSgClient = application.bot_data[DATA_CLIENT_KEY]
+    snapshot = await client.fetch_latest()
+    # Check after fetching so request delays count toward the reading age.
+    sent_at = now or datetime.now(SGT)
+    try:
+        snapshot.validate_freshness(
+            now=sent_at,
+            max_age=timedelta(minutes=application.bot_data.get(MAX_READING_AGE_KEY, 120)),
+        )
+    except ValueError as exc:
+        raise DataGovSgError(f"Unusable air-quality timestamps: {exc}") from exc
+    return snapshot, sent_at
+
+
+async def private_air_quality_update(
     update: Update,
-    _context: CallbackContext[Any, Any, Any, Any],
+    context: CallbackContext[Any, Any, Any, Any],
 ) -> None:
-    """Reply to DMs without exposing any interactive bot features."""
-    if update.effective_message is not None:
-        await update.effective_message.reply_text(PRIVATE_NOTICE)
+    """Fetch the latest official readings for every DM, at any time of day."""
+    if update.effective_message is None:
+        return
+    try:
+        snapshot, sent_at = await _fetch_fresh_air_quality(context.application)
+    except DataGovSgError as exc:
+        LOGGER.warning("Could not fetch the requested air-quality update: %s", exc)
+        message = AIR_QUALITY_UNAVAILABLE
+    else:
+        message = format_air_quality_message(snapshot, sent_at=sent_at)
+    try:
+        await update.effective_message.reply_text(message, parse_mode=ParseMode.HTML)
+    except TelegramError as exc:
+        LOGGER.exception("Could not send the requested air-quality reply: %s", exc)
 
 
 async def broadcast_air_quality(
     application: Application[Any, Any, Any, Any, Any, Any],
     *,
     now: datetime | None = None,
+    threshold_only: bool = False,
 ) -> bool:
-    client: DataGovSgClient = application.bot_data[DATA_CLIENT_KEY]
     channel_id: int | str = application.bot_data[CHANNEL_ID_KEY]
     try:
-        snapshot = await client.fetch_latest()
-        # Check after fetching so request delays count toward the reading age.
-        sent_at = now or datetime.now(SGT)
-        try:
-            snapshot.validate_freshness(
-                now=sent_at,
-                max_age=timedelta(minutes=application.bot_data.get(MAX_READING_AGE_KEY, 120)),
-            )
-        except ValueError as exc:
-            raise DataGovSgError(f"Unusable air-quality timestamps: {exc}") from exc
+        snapshot, sent_at = await _fetch_fresh_air_quality(application, now=now)
+        if threshold_only and not any(
+            snapshot.psi_by_region[region] > 200 or snapshot.pm25_by_region[region] > 150
+            for region in REGION_ORDER
+        ):
+            LOGGER.info("Skipped extra air-quality update: no region exceeds the thresholds")
+            return False
         message = format_air_quality_message(snapshot, sent_at=sent_at)
         await application.bot.send_message(
             chat_id=channel_id,
@@ -74,6 +102,10 @@ async def broadcast_air_quality(
 
 async def scheduled_broadcast(context: CallbackContext[Any, Any, Any, Any]) -> None:
     await broadcast_air_quality(context.application)
+
+
+async def scheduled_threshold_broadcast(context: CallbackContext[Any, Any, Any, Any]) -> None:
+    await broadcast_air_quality(context.application, threshold_only=True)
 
 
 async def broadcast_london_forecast(
@@ -126,7 +158,7 @@ def build_application(settings: Settings) -> Application[Any, Any, Any, Any, Any
     application.bot_data[OPEN_METEO_CLIENT_KEY] = open_meteo_client
     application.bot_data[CHANNEL_ID_KEY] = settings.telegram_channel_id
     application.bot_data[MAX_READING_AGE_KEY] = settings.max_reading_age_minutes
-    application.add_handler(MessageHandler(filters.ChatType.PRIVATE, private_message_notice))
+    application.add_handler(MessageHandler(filters.ChatType.PRIVATE, private_air_quality_update))
     application.add_error_handler(on_error)
 
     if application.job_queue is None:
@@ -137,7 +169,22 @@ def build_application(settings: Settings) -> Application[Any, Any, Any, Any, Any
         job_kwargs={
             "trigger": "cron",
             "hour": "8,12,16,20",
-            "minute": 15,
+            "minute": 5,
+            "second": 0,
+            "timezone": SGT,
+            "coalesce": True,
+            "max_instances": 1,
+            "misfire_grace_time": 300,
+        },
+    )
+    application.job_queue.run_custom(
+        scheduled_threshold_broadcast,
+        name="hourly-air-quality-threshold-check",
+        job_kwargs={
+            "trigger": "cron",
+            # Regular slots already send an update, so do not check them twice.
+            "hour": "9-11,13-15,17-19,21-23",
+            "minute": 5,
             "second": 0,
             "timezone": SGT,
             "coalesce": True,
@@ -159,7 +206,11 @@ def build_application(settings: Settings) -> Application[Any, Any, Any, Any, Any
             "misfire_grace_time": 300,
         },
     )
-    LOGGER.info("Broadcasts scheduled for 08:15, 12:15, 16:15, and 20:15 Asia/Singapore")
+    LOGGER.info("Broadcasts scheduled for 08:05, 12:05, 16:05, and 20:05 Asia/Singapore")
+    LOGGER.info(
+        "Extra updates checked hourly at :05 from 08:05 through 23:05 Asia/Singapore "
+        "when any region has PSI > 200 or PM2.5 > 150; regular slots send only once"
+    )
     LOGGER.info("London forecast scheduled for 08:00 Europe/London")
     return application
 
